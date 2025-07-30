@@ -69,35 +69,68 @@ export const postJob = catchAsyncErrors(async (req, res, next) => {
 });
 
 export const getAllJobs = catchAsyncErrors(async (req, res, next) => {
-  const { city, niche, searchKeyword } = req.query;
-  const query = {};
-  if (city) {
-    query.location = city;
+  try {
+    const { city, niche, searchKeyword } = req.query;
+    const query = {};
+    
+    // Build query object
+    if (city) {
+      query.location = { $regex: city, $options: "i" };
+    }
+    if (niche) {
+      query.jobNiche = { $regex: niche, $options: "i" };
+    }
+    if (searchKeyword) {
+      query.$or = [
+        { title: { $regex: searchKeyword, $options: "i" } },
+        { companyName: { $regex: searchKeyword, $options: "i" } },
+        { introduction: { $regex: searchKeyword, $options: "i" } },
+      ];
+    }
+
+    // Add timeout and optimization
+    const jobs = await Job.find(query)
+      .select('title jobType location companyName introduction salary hiringMultipleCandidates jobNiche jobPostedOn postedBy')
+      .sort({ jobPostedOn: -1 })
+      .limit(100)
+      .lean()
+      .maxTimeMS(30000); // 30 second timeout
+
+    res.status(200).json({
+      success: true,
+      jobs,
+      count: jobs.length,
+    });
+  } catch (error) {
+    console.error('Error fetching jobs:', error);
+    
+    if (error.name === 'MongooseError' || error.name === 'MongoError') {
+      return next(new ErrorHandler("Database connection issue. Please try again later.", 500));
+    }
+    
+    if (error.message.includes('timeout')) {
+      return next(new ErrorHandler("Request timeout. Please try again.", 408));
+    }
+    
+    return next(new ErrorHandler("Failed to fetch jobs. Please try again.", 500));
   }
-  if (niche) {
-    query.jobNiche = niche;
-  }
-  if (searchKeyword) {
-    query.$or = [
-      { title: { $regex: searchKeyword, $options: "i" } },
-      { companyName: { $regex: searchKeyword, $options: "i" } },
-      { introduction: { $regex: searchKeyword, $options: "i" } },
-    ];
-  }
-  const jobs = await Job.find(query);
-  res.status(200).json({
-    success: true,
-    jobs,
-    count: jobs.length,
-  });
 });
 
 export const getMyJobs = catchAsyncErrors(async (req, res, next) => {
-  const myJobs = await Job.find({ postedBy: req.user._id });
-  res.status(200).json({
-    success: true,
-    myJobs,
-  });
+  try {
+    const myJobs = await Job.find({ postedBy: req.user._id })
+      .sort({ jobPostedOn: -1 })
+      .lean()
+      .maxTimeMS(30000);
+    
+    res.status(200).json({
+      success: true,
+      myJobs,
+    });
+  } catch (error) {
+    console.error('Error fetching my jobs:', error);
+    return next(new ErrorHandler("Failed to fetch your jobs. Please try again.", 500));
+  }
 });
 
 export const deleteJob = catchAsyncErrors(async (req, res, next) => {
@@ -114,13 +147,27 @@ export const deleteJob = catchAsyncErrors(async (req, res, next) => {
 });
 
 export const getASingleJob = catchAsyncErrors(async (req, res, next) => {
-  const { id } = req.params;
-  const job = await Job.findById(id);
-  if (!job) {
-    return next(new ErrorHandler("Job not found.", 404));
+  try {
+    const { id } = req.params;
+    const job = await Job.findById(id)
+      .lean()
+      .maxTimeMS(30000);
+    
+    if (!job) {
+      return next(new ErrorHandler("Job not found.", 404));
+    }
+    
+    res.status(200).json({
+      success: true,
+      job,
+    });
+  } catch (error) {
+    console.error('Error fetching single job:', error);
+    
+    if (error.name === 'CastError') {
+      return next(new ErrorHandler("Invalid job ID.", 400));
+    }
+    
+    return next(new ErrorHandler("Failed to fetch job details. Please try again.", 500));
   }
-  res.status(200).json({
-    success: true,
-    job,
-  });
 });

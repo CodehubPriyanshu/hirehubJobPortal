@@ -1,5 +1,7 @@
 import { createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
+import config from "../../config/config.js";
+import { getErrorMessage } from "../../utils/errorHandler.js";
 
 const userSlice = createSlice({
   name: "user",
@@ -92,7 +94,7 @@ export const register = (data) => async (dispatch) => {
   dispatch(userSlice.actions.registerRequest());
   try {
     const response = await axios.post(
-      "http://localhost:4000/api/v1/user/register",
+      `${config.BACKEND_URL}/api/v1/user/register`,
       data,
       {
         withCredentials: true,
@@ -102,7 +104,7 @@ export const register = (data) => async (dispatch) => {
     dispatch(userSlice.actions.registerSuccess(response.data));
     dispatch(userSlice.actions.clearAllErrors());
   } catch (error) {
-    dispatch(userSlice.actions.registerFailed(error.response.data.message));
+    dispatch(userSlice.actions.registerFailed(getErrorMessage(error, "Registration failed")));
   }
 };
 
@@ -110,7 +112,7 @@ export const login = (data) => async (dispatch) => {
   dispatch(userSlice.actions.loginRequest());
   try {
     const response = await axios.post(
-      "http://localhost:4000/api/v1/user/login",
+      `${config.BACKEND_URL}/api/v1/user/login`,
       data,
       {
         withCredentials: true,
@@ -120,7 +122,7 @@ export const login = (data) => async (dispatch) => {
     dispatch(userSlice.actions.loginSuccess(response.data));
     dispatch(userSlice.actions.clearAllErrors());
   } catch (error) {
-    dispatch(userSlice.actions.loginFailed(error.response.data.message));
+    dispatch(userSlice.actions.loginFailed(getErrorMessage(error, "Login failed")));
   }
 };
 
@@ -128,7 +130,7 @@ export const getUser = () => async (dispatch) => {
   dispatch(userSlice.actions.fetchUserRequest());
   try {
     const response = await axios.get(
-      "http://localhost:4000/api/v1/user/getuser",
+      `${config.BACKEND_URL}/api/v1/user/getuser`,
       {
         withCredentials: true,
       }
@@ -136,13 +138,13 @@ export const getUser = () => async (dispatch) => {
     dispatch(userSlice.actions.fetchUserSuccess(response.data.user));
     dispatch(userSlice.actions.clearAllErrors());
   } catch (error) {
-    dispatch(userSlice.actions.fetchUserFailed(error.response.data.message));
+    dispatch(userSlice.actions.fetchUserFailed(getErrorMessage(error, "Failed to fetch user")));
   }
 };
 export const logout = () => async (dispatch) => {
   try {
     const response = await axios.get(
-      "http://localhost:4000/api/v1/user/logout",
+      `${config.BACKEND_URL}/api/v1/user/logout`,
       {
         withCredentials: true,
       }
@@ -150,7 +152,7 @@ export const logout = () => async (dispatch) => {
     dispatch(userSlice.actions.logoutSuccess());
     dispatch(userSlice.actions.clearAllErrors());
   } catch (error) {
-    dispatch(userSlice.actions.logoutFailed(error.response.data.message));
+    dispatch(userSlice.actions.logoutFailed(getErrorMessage(error, "Logout failed")));
   }
 };
 

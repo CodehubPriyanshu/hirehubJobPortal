@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { clearAllJobErrors, fetchJobs } from "../store/slices/jobSlice";
 import Spinner from "../components/Spinner";
-import { FaSearch } from "react-icons/fa";
+import { FaSearch, FaRedo } from "react-icons/fa";
 import { Link } from "react-router-dom";
 
 const Jobs = () => {
@@ -12,6 +12,8 @@ const Jobs = () => {
   const [niche, setNiche] = useState("");
   const [selectedNiche, setSelectedNiche] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
+  const [hasError, setHasError] = useState(false);
 
   const { jobs, loading, error } = useSelector((state) => state.jobs);
 
@@ -19,6 +21,7 @@ const Jobs = () => {
     setCity(city);
     setSelectedCity(city);
   };
+  
   const handleNicheChange = (niche) => {
     setNiche(niche);
     setSelectedNiche(niche);
@@ -26,16 +29,42 @@ const Jobs = () => {
 
   const dispatch = useDispatch();
 
+  const fetchJobsWithRetry = useCallback(() => {
+    setHasError(false);
+    dispatch(fetchJobs(city, niche, searchKeyword));
+  }, [dispatch, city, niche, searchKeyword]);
+
   useEffect(() => {
     if (error) {
+      setHasError(true);
       toast.error(error);
       dispatch(clearAllJobErrors());
+      
+      // Auto-retry for timeout errors
+      if (error.includes('timeout') && retryCount < 3) {
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          fetchJobsWithRetry();
+        }, 2000);
+      }
+    } else {
+      setRetryCount(0);
+      setHasError(false);
     }
-    dispatch(fetchJobs(city, niche, searchKeyword));
-  }, [dispatch, error, city, niche]);
+  }, [error, dispatch, retryCount, fetchJobsWithRetry]);
+
+  useEffect(() => {
+    fetchJobsWithRetry();
+  }, [city, niche]);
 
   const handleSearch = () => {
-    dispatch(fetchJobs(city, niche, searchKeyword));
+    setRetryCount(0);
+    fetchJobsWithRetry();
+  };
+
+  const handleRetry = () => {
+    setRetryCount(0);
+    fetchJobsWithRetry();
   };
 
   const cities = [
@@ -158,7 +187,43 @@ const Jobs = () => {
                 </select>
               </div>
               <div className="jobs_container">
-                {jobs &&
+                {hasError && !loading ? (
+                  <div className="error-container" style={{
+                    textAlign: 'center',
+                    padding: '2rem',
+                    backgroundColor: '#f8f9fa',
+                    borderRadius: '8px',
+                    margin: '2rem 0'
+                  }}>
+                    <h3 style={{ color: '#dc3545', marginBottom: '1rem' }}>
+                      Unable to load jobs
+                    </h3>
+                    <p style={{ marginBottom: '1.5rem', color: '#6c757d' }}>
+                      There was an issue connecting to the server. Please check your internet connection and try again.
+                    </p>
+                    <button 
+                      onClick={handleRetry}
+                      style={{
+                        backgroundColor: '#007bff',
+                        color: 'white',
+                        border: 'none',
+                        padding: '0.75rem 1.5rem',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <FaRedo /> Retry
+                    </button>
+                    {retryCount > 0 && (
+                      <p style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#6c757d' }}>
+                        Retry attempt: {retryCount}/3
+                      </p>
+                    )}
+                  </div>
+                ) : jobs && jobs.length > 0 ? (
                   jobs.map((element) => {
                     return (
                       <div className="card" key={element._id}>
@@ -189,7 +254,17 @@ const Jobs = () => {
                         </div>
                       </div>
                     );
-                  })}
+                  })
+                ) : !loading && (
+                  <div className="no-jobs" style={{
+                    textAlign: 'center',
+                    padding: '2rem',
+                    color: '#6c757d'
+                  }}>
+                    <h3>No jobs found</h3>
+                    <p>Try adjusting your search criteria or check back later for new opportunities.</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
